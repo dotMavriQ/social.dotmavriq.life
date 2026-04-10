@@ -1,0 +1,411 @@
+// ── Theme ──
+var html = document.documentElement;
+var themeToggle = document.getElementById("theme-toggle");
+var STORAGE_KEY = "social-theme";
+var saved = localStorage.getItem(STORAGE_KEY);
+if (saved === "dark") html.setAttribute("data-theme", "dark");
+else if (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+  html.setAttribute("data-theme", "dark");
+}
+if (themeToggle) {
+  themeToggle.addEventListener("click", function() {
+    var isDark = html.getAttribute("data-theme") === "dark";
+    var next = isDark ? "light" : "dark";
+    html.setAttribute("data-theme", next);
+    localStorage.setItem(STORAGE_KEY, next);
+  });
+}
+
+// ── Cloud Marquee ──
+var TILE = [
+  "|:::|=======|:::|_______|:::|=======|:::|_______|:::|=======|:::|_______|:::|=======|:::|_______|:::|",
+  "|   |       |   |       |   |       |   |       |   |       |   |       |   |       |   |       |   |",
+  "|___|_______|___|_______|___|_______|___|_______|___|_______|___|_______|___|_______|___|_______|___|",
+].join("\n");
+
+(function initMarquee() {
+  var border = document.querySelector(".nav-cloud-border");
+  var track = document.getElementById("cloud-track");
+  if (!border || !track) return;
+
+  var SPEED = 22;
+  var tileW = 0, offset = 0, lastTs = null, raf = null;
+
+  var probe = document.createElement("pre");
+  probe.style.cssText = "position:fixed;top:-9999px;white-space:pre;font-family:jgs,ui-monospace,monospace;font-size:18px;line-height:18px;padding:0;";
+  probe.textContent = TILE;
+  document.body.appendChild(probe);
+  tileW = probe.getBoundingClientRect().width;
+  document.body.removeChild(probe);
+
+  function buildTrack() {
+    if (raf) cancelAnimationFrame(raf);
+    track.innerHTML = "";
+    var count = Math.ceil(border.clientWidth / tileW) + 2;
+    for (var i = 0; i < count; i++) {
+      var pre = document.createElement("pre");
+      pre.className = "cloud-art";
+      pre.textContent = TILE;
+      track.appendChild(pre);
+    }
+    offset = 0;
+    lastTs = null;
+    raf = requestAnimationFrame(tick);
+  }
+
+  function tick(ts) {
+    if (lastTs === null) lastTs = ts;
+    var dt = Math.min(ts - lastTs, 50) / 1000;
+    lastTs = ts;
+    offset -= SPEED * dt;
+    if (offset <= -tileW) offset += tileW;
+    track.style.transform = "translateX(" + offset + "px)";
+    raf = requestAnimationFrame(tick);
+  }
+
+  new ResizeObserver(function() { buildTrack(); }).observe(border);
+  buildTrack();
+})();
+
+// ── Feed ──
+var API = "/api/v1/timelines/public";
+var LIMIT = 20;
+var maxId = null;
+var loading = false;
+
+var feedEl = document.getElementById("feed");
+var loadMoreEl = document.getElementById("load-more");
+var loadMoreBtn = document.getElementById("load-more-btn");
+
+function formatDate(iso) {
+  var d = new Date(iso);
+  var months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+  return d.getDate() + " " + months[d.getMonth()] + " " + d.getFullYear();
+}
+
+function escAttr(s) {
+  return s.replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function renderPost(post) {
+  var div = document.createElement("article");
+  div.className = "post";
+
+  var date = formatDate(post.created_at);
+  var postUrl = post.url || post.uri;
+
+  var mediaHtml = "";
+  if (post.media_attachments && post.media_attachments.length > 0) {
+    var count = Math.min(post.media_attachments.length, 4);
+    var gridClass = "media-" + count;
+    var items = post.media_attachments.slice(0, 4).map(function(m) {
+      var desc = m.description ? escAttr(m.description) : "attached image";
+      if (m.type === "video" || m.type === "gifv") {
+        return '<video src="' + escAttr(m.url) + '" controls muted playsinline' +
+          (m.description ? ' title="' + desc + '"' : '') +
+          '></video>';
+      }
+      return '<a href="' + escAttr(m.url) + '" target="_blank" rel="noopener">' +
+        '<img src="' + escAttr(m.preview_url || m.url) + '" alt="' + desc +
+        '" loading="lazy"></a>';
+    }).join("");
+    mediaHtml = '<div class="post-media ' + gridClass + '">' + items + '</div>';
+  }
+
+  div.innerHTML =
+    '<div class="post-header">' +
+      '<img class="post-avatar" src="' + escAttr(post.account.avatar) + '" alt="">' +
+      '<div class="post-meta">' +
+        '<span class="post-author">' + escAttr(post.account.display_name || post.account.acct) + '</span>' +
+        '<span class="post-date"><a href="' + escAttr(postUrl) + '" target="_blank" rel="noopener">' + date + '</a></span>' +
+      '</div>' +
+    '</div>' +
+    '<div class="post-content">' + post.content + '</div>' +
+    mediaHtml;
+
+  return div;
+}
+
+function loadPosts() {
+  if (loading) return;
+  loading = true;
+  if (loadMoreBtn) loadMoreBtn.disabled = true;
+
+  var url = API + "?local=true&limit=" + LIMIT;
+  if (maxId) url += "&max_id=" + maxId;
+
+  fetch(url).then(function(res) {
+    if (!res.ok) throw new Error("API error " + res.status);
+    return res.json();
+  }).then(function(posts) {
+    var filtered = posts.filter(function(p) {
+      if (p.reblog) return false;
+      if (p.in_reply_to_id) return false;
+      // Filter out posts that start with a mention (directed conversations)
+      var txt = p.content.replace(/^<p>/, "").trimStart();
+      if (txt.match(/^<span class="h-card">/)) return false;
+      return true;
+    });
+
+    if (posts.length === 0) {
+      if (!maxId) feedEl.innerHTML = '<div class="empty">no posts yet.</div>';
+      loadMoreEl.style.display = "none";
+      loading = false;
+      return;
+    }
+
+    if (!maxId) feedEl.innerHTML = "";
+
+    filtered.forEach(function(post) {
+      feedEl.appendChild(renderPost(post));
+    });
+
+    maxId = posts[posts.length - 1].id;
+
+    if (posts.length >= LIMIT) {
+      loadMoreEl.style.display = "block";
+    } else {
+      loadMoreEl.style.display = "none";
+    }
+
+    // If all posts were filtered out but there are more pages, auto-fetch next
+    if (filtered.length === 0 && posts.length >= LIMIT) {
+      loading = false;
+      return loadPosts();
+    }
+
+    loading = false;
+    if (loadMoreBtn) loadMoreBtn.disabled = false;
+  }).catch(function(err) {
+    if (!maxId) feedEl.innerHTML = '<div class="empty">could not load posts.</div>';
+    console.error(err);
+    loading = false;
+    if (loadMoreBtn) loadMoreBtn.disabled = false;
+  });
+}
+
+if (loadMoreBtn) {
+  loadMoreBtn.addEventListener("click", loadPosts);
+}
+
+loadPosts();
+
+// ── ASCII Cityscape Backdrop ──
+(function initCityscape() {
+  var scene = document.getElementById("ascii-scene");
+  var wrapper = scene ? scene.parentElement : null;
+  if (!scene || !wrapper) return;
+
+  var skyTile = [
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░/\\░░░░░░░░░░░░░/\\░░░░░░░░░░/\\░░░",
+    "░░|  |░░░░░░░░░░░░||░░░░░░░░░░|.|░░",
+    "__|__|____________||__________|_|__",
+  ];
+  var tile2 = [
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░_____░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░|     |░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░| . . |░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░| . . |░░░░░░░░░░░░___░░░░░░░░░░",
+    "░░░|_____|░░░░░░░░░░░|   |░░░░░░░░░",
+    "___|=|=|=|___________| . |_________",
+    "   |=|=|=|           |   |         ",
+    "___|=|=|=|___________|___|_________",
+  ];
+  var tile3 = [
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░_______░░░░░░░░░░░░░░░░░░░",
+    "░░░░_░░░|       |░░░░░░░░_____░░░░░",
+    "░░░|=|░░| .   . |░░░░░░░|     |░░░░",
+    "░░░|=|░░|  ___  |░░░░░░░| . . |░░░░",
+    "░░░|=|░░| |   | |░_░░░░░|_____|░░░░",
+    "░░░|=|░░| |   | ||=|░░░░|=|=|=|░░░░",
+    "░░░|=|░░|_|___|_||=|░░░░|=|=|=|░░░░",
+    "___|=|__|=|=|=|=||=|____|=|=|=|____",
+    "   |=|  |=|=|=|=||=|    |=|=|=|    ",
+    "___|=|__|=|=|=|=||=|___.|=|=|=|____",
+  ];
+  var tile4 = [
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░░_░░░░░░░░░░░░",
+    "░░░░░░░░░░░░░░░░░░░░░|=|░░░░░░░░░░░",
+    "░░░_____░░░░░░░░░░░░░|=|░░░░░░░░░░░",
+    "░░|     |░░░░░_░░░░░░|=|░░░░░░░░░░░",
+    "░░| . . |░░░░|=|░░░░░|=|░░░░░░░░░░░",
+    "░░|     |░░░░|=|░_░░░|=|░░░░░░░░░░░",
+    "░░|_____|░░░░|=||=|░░|=|░░░░░░░░░░░",
+    "__|=|=|=|____|=||=|__|=|_______/\\__",
+    "  |=|=|=|    |=||=|  |=|       ||  ",
+    "__|=|=|=|____|=||=|__|=|_______||__",
+  ];
+
+  var TILE_W = skyTile[0].length;
+  var TILE_H = skyTile.length;
+  var allTiles = [skyTile, tile2, tile3, tile4];
+
+  var birds = [
+    { x: 5, yFrac: 0.55, speed: 0.15, frames: ["~v~", "~^~"] },
+    { x: 40, yFrac: 0.45, speed: 0.22, frames: ["-v-", "-^-"] },
+    { x: 75, yFrac: 0.65, speed: 0.12, frames: ["~v~", "~^~"] },
+    { x: 110, yFrac: 0.50, speed: 0.18, frames: ["-v-", "-^-"] },
+  ];
+
+  var cityCloudList = [
+    { x: -25, yFrac: 0.08, speed: 0.04, art: [
+      "    .-.   .-.",
+      " .-'   '-'   '-.",
+      "(                )",
+      " '-._________.-'"
+    ]},
+    { x: 40, yFrac: 0.22, speed: 0.025, art: [
+      "     .-.",
+      "  .-'   '-.",
+      " (         )",
+      "  '-.___.-'"
+    ]},
+    { x: 95, yFrac: 0.12, speed: 0.035, art: [
+      "   .-.    .-.",
+      ".-'   '..'   '-.",
+      "(                )",
+      " '-.__________.-'"
+    ]},
+  ];
+
+  var W = 80, H = TILE_H, cityFrame = 0, cityRaf = null;
+  var charW = 0, charH = 0;
+
+  function measure() {
+    var probe = document.createElement("span");
+    probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre;font:inherit;";
+    probe.textContent = "░\n░";
+    wrapper.appendChild(probe);
+    var rect = probe.getBoundingClientRect();
+    charW = rect.width;
+    charH = rect.height / 2;
+    wrapper.removeChild(probe);
+    if (charW > 0) W = Math.floor(wrapper.clientWidth / charW);
+    if (charH > 0 && wrapper.clientHeight > 0) {
+      H = Math.max(TILE_H, Math.floor(wrapper.clientHeight / charH));
+    } else {
+      H = TILE_H;
+    }
+  }
+
+  function buildRow(row, totalH, w) {
+    var skyRows = totalH - TILE_H;
+    var tileRow = row - skyRows;
+    var out = [];
+    for (var col = 0; col < w; col++) {
+      if (tileRow < 0) {
+        out.push("░");
+      } else {
+        var tileIndex = Math.floor(col / TILE_W);
+        var src = allTiles[tileIndex % allTiles.length];
+        var srcRow = tileRow < src.length ? src[tileRow] : null;
+        if (srcRow) {
+          out.push(srcRow[col % TILE_W] || "░");
+        } else {
+          out.push("░");
+        }
+      }
+    }
+    return out;
+  }
+
+  function render() {
+    var buffer = [];
+    var r;
+    for (r = 0; r < H; r++) {
+      buffer.push(buildRow(r, H, W));
+    }
+
+    var t = cityFrame;
+    var skyRows = H - TILE_H;
+
+    // Draw clouds
+    for (var ci = 0; ci < cityCloudList.length; ci++) {
+      var cloud = cityCloudList[ci];
+      var cloudW = 0;
+      for (var li = 0; li < cloud.art.length; li++) {
+        if (cloud.art[li].length > cloudW) cloudW = cloud.art[li].length;
+      }
+      var baseY = Math.max(0, Math.floor(skyRows * cloud.yFrac));
+      var cx = Math.floor((cloud.x + t * cloud.speed) % (W + cloudW + 30)) - cloudW;
+      for (var line = 0; line < cloud.art.length; line++) {
+        var cy = baseY + line;
+        if (cy >= 0 && cy < skyRows && buffer[cy]) {
+          var artLine = cloud.art[line];
+          var first = -1, last = -1;
+          for (var i = 0; i < artLine.length; i++) {
+            if (artLine[i] !== " ") { if (first < 0) first = i; last = i; }
+          }
+          if (first < 0) continue;
+          for (i = first; i <= last; i++) {
+            var px = cx + i;
+            if (px >= 0 && px < W) {
+              buffer[cy][px] = artLine[i] !== " " ? artLine[i] : " ";
+            }
+          }
+        }
+      }
+    }
+
+    // Draw birds
+    for (var bi = 0; bi < birds.length; bi++) {
+      var bird = birds[bi];
+      var by = skyRows > 2 ? Math.max(0, Math.min(skyRows - 1, Math.floor(skyRows * bird.yFrac))) : 0;
+      if (by < H && buffer[by]) {
+        var bx = Math.floor((bird.x + t * bird.speed) % (W + 10)) - 5;
+        var bf = bird.frames[Math.floor(t / 8) % bird.frames.length];
+        for (var j = 0; j < bf.length; j++) {
+          var bpx = bx + j;
+          if (bpx >= 0 && bpx < W && buffer[by][bpx] === "░") {
+            buffer[by][bpx] = bf[j];
+          }
+        }
+      }
+    }
+
+    scene.textContent = buffer.map(function(row) { return row.join(""); }).join("\n");
+    cityFrame++;
+    cityRaf = requestAnimationFrame(render);
+  }
+
+  function init() {
+    measure();
+    if (cityRaf) cancelAnimationFrame(cityRaf);
+    cityFrame = 0;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      var buf = [];
+      for (var r = 0; r < H; r++) buf.push(buildRow(r, H, W));
+      scene.textContent = buf.map(function(row) { return row.join(""); }).join("\n");
+    } else {
+      cityRaf = requestAnimationFrame(render);
+    }
+  }
+
+  new ResizeObserver(function() { measure(); }).observe(wrapper);
+  init();
+})();

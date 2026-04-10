@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>social.dotmavriq.life</title>
+  <meta name="description" content="Posts from social.dotmavriq.life">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <style>
+    @font-face {
+      font-family: "CommitMono";
+      src: url("/static/fonts/CommitMono-400-Regular.woff2") format("woff2");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "CommitMono";
+      src: url("/static/fonts/CommitMono-700-Regular.woff2") format("woff2");
+      font-weight: 700;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "jgs";
+      src: url("/static/fonts/Jgs-SingleLine.ttf") format("truetype");
+      font-display: swap;
+    }
+
+    :root {
+      --bg: #f5f3ec;
+      --fg: #000000;
+      --cloud: #cccccc;
+      --muted: #666666;
+      --accent: #000000;
+      --font-mono: "CommitMono", "jgs", ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+      --ascii-size: 18px;
+      --ascii-line: 18px;
+    }
+
+    [data-theme="dark"] {
+      --bg: #1a1a17;
+      --fg: #f5f3ec;
+      --cloud: #333333;
+      --muted: #999999;
+      --accent: #f5f3ec;
+    }
+
+    @media (max-width: 600px) {
+      :root {
+        --ascii-size: 12px;
+        --ascii-line: 12px;
+      }
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-size: 16px;
+      scroll-behavior: smooth;
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-mono);
+      min-height: 100vh;
+      line-height: 1.35;
+      transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    a { color: inherit; text-decoration: none; transition: color 0.15s ease; }
+    a:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 4px; }
+
+    /* ── Nav ── */
+    .nav {
+      width: 100%;
+      background: var(--bg);
+      transition: background 0.3s;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 1px solid var(--cloud);
+    }
+    .nav-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 20px;
+      max-width: 680px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .nav-logo {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-decoration: none;
+    }
+    .nav-logo:hover { text-decoration: none; }
+    .nav-logo .slash { color: var(--muted); font-weight: 400; }
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
+    .nav-link {
+      color: var(--muted);
+      font-size: 0.85rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .nav-link:hover { color: var(--accent); }
+    .theme-toggle {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0;
+      font-size: 1.1rem;
+      font-family: var(--font-mono);
+      transition: color 0.1s;
+    }
+    .theme-toggle:hover { color: var(--accent); }
+    .icon-sun { display: none; }
+    .icon-moon { display: inline; }
+    [data-theme="dark"] .icon-sun { display: inline; }
+    [data-theme="dark"] .icon-moon { display: none; }
+
+    /* ── Cloud Marquee ── */
+    .nav-cloud-border {
+      overflow: hidden;
+      user-select: none;
+      margin-bottom: -1px;
+      height: 58px;
+      display: flex;
+      align-items: center;
+      border-top: 1px solid var(--cloud);
+    }
+    .cloud-track {
+      display: flex;
+      will-change: transform;
+    }
+    .cloud-art {
+      flex-shrink: 0;
+      white-space: pre;
+      font-family: "jgs", var(--font-mono);
+      font-size: var(--ascii-size);
+      line-height: var(--ascii-line);
+      color: var(--fg);
+      padding: 0;
+      margin: 0;
+      transition: color 0.3s;
+    }
+
+    /* ── Main Content ── */
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 0 20px;
+      width: 100%;
+    }
+    .page-content {
+      flex: 1;
+      padding: 2rem;
+      background: var(--bg);
+    }
+    .page-title {
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      margin-bottom: 0.5em;
+      color: var(--accent);
+      text-transform: lowercase;
+      font-size: 1.5rem;
+    }
+    .page-title::before {
+      content: "// ";
+      color: var(--muted);
+      font-weight: 400;
+    }
+    .page-subtitle {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 2rem;
+      font-style: italic;
+    }
+
+    /* ── Post Feed ── */
+    .post {
+      border-bottom: 1px solid var(--cloud);
+      padding: 1.5rem 0;
+    }
+    .post:first-child {
+      padding-top: 0;
+    }
+    .post:last-child {
+      border-bottom: none;
+    }
+    .post-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .post-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      background: var(--cloud);
+    }
+    .post-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+    .post-author {
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    .post-date {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .post-date a { color: var(--muted); }
+    .post-date a:hover { color: var(--accent); }
+    .post-content {
+      font-size: 0.9rem;
+      line-height: 1.6;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+    .post-content p { margin-bottom: 0.5em; }
+    .post-content p:last-child { margin-bottom: 0; }
+    .post-content a {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .post-content .hashtag { color: var(--muted); }
+    .post-content .mention { font-weight: 700; }
+
+    /* ── Media ── */
+    .post-media {
+      margin-top: 0.75rem;
+      display: grid;
+      gap: 0.5rem;
+    }
+    .post-media.media-1 { grid-template-columns: 1fr; }
+    .post-media.media-2 { grid-template-columns: 1fr 1fr; }
+    .post-media.media-3,
+    .post-media.media-4 { grid-template-columns: 1fr 1fr; }
+    .post-media img,
+    .post-media video {
+      width: 100%;
+      border-radius: 4px;
+      border: 1px solid var(--cloud);
+      display: block;
+      max-height: 400px;
+      object-fit: cover;
+    }
+
+    /* ── Load More ── */
+    .load-more {
+      padding: 1.5rem 0;
+      text-align: center;
+    }
+    .load-more-btn {
+      background: none;
+      border: 1px solid var(--cloud);
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      padding: 0.5rem 1.5rem;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      text-transform: lowercase;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .load-more-btn:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    .load-more-btn:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    /* ── Loading / Empty ── */
+    .loading, .empty {
+      padding: 3rem 0;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    /* ── ASCII Backdrop ── */
+    .ascii-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+      color: var(--cloud);
+      font-family: "jgs", var(--font-mono);
+      font-size: clamp(14px, 1.65vw, 22px);
+      line-height: 1;
+      opacity: 0.7;
+      transition: color 0.3s, opacity 0.3s;
+    }
+    [data-theme="dark"] .ascii-backdrop {
+      opacity: 0.35;
+    }
+    .ascii-backdrop pre {
+      margin: 0;
+      white-space: pre;
+      font-family: inherit;
+      font-size: inherit;
+      line-height: inherit;
+    }
+
+    .nav { z-index: 100; position: relative; background: var(--bg); }
+    .page-content { position: relative; z-index: 1; }
+    .footer { position: relative; z-index: 1; background: var(--bg); }
+
+    /* ── Footer ── */
+    .footer {
+      padding: 2rem 0 4rem;
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .ascii-divider {
+      user-select: none;
+      pointer-events: none;
+      font-family: "jgs", var(--font-mono);
+      font-size: var(--ascii-size);
+      line-height: var(--ascii-line);
+      color: var(--fg);
+      white-space: pre;
+      margin: 2rem 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="ascii-backdrop" aria-hidden="true">
+    <pre id="ascii-scene"></pre>
+  </div>
+
+  <nav class="nav" aria-label="Site navigation">
+    <div class="nav-bar">
+      <a class="nav-logo" href="/"><span class="slash">//</span> social.dotmavriq.life</a>
+      <div class="nav-right">
+        <a class="nav-link" href="https://blog.dotmavriq.life">blog</a>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle colour theme">
+          <span class="icon-sun" aria-hidden="true">&#9788;</span>
+          <span class="icon-moon" aria-hidden="true">&#9789;</span>
+        </button>
+      </div>
+    </div>
+    <div class="nav-cloud-border" aria-hidden="true">
+      <div class="cloud-track" id="cloud-track"></div>
+    </div>
+  </nav>
+
+  <main class="page-content container" id="main">
+    <h1 class="page-title">posts</h1>
+    <p class="page-subtitle">original posts from this instance</p>
+    <div id="feed" class="feed">
+      <div class="loading">loading...</div>
+    </div>
+    <div id="load-more" class="load-more" style="display:none;">
+      <button class="load-more-btn" id="load-more-btn">// load more</button>
+    </div>
+  </main>
+
+  <footer class="footer container">
+    <pre class="ascii-divider">|:::|=======|:::|_______|:::|=======|:::|_______|:::|</pre>
+    <p>&copy; 2026 dotmavriq. <span class="slash">//</span> crafted with intent.</p>
+  </footer>
+
+  <script src="/static/social.js" defer></script>
+</body>
+</html>
