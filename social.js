@@ -190,6 +190,96 @@ if (loadMoreBtn) {
 
 loadPosts();
 
+// ── Follow Button ──
+(function initFollow() {
+  var PROFILE_URI = "https://social.dotmavriq.life/users/dotmavriq";
+  var btn = document.getElementById("follow-btn");
+  var overlay = document.getElementById("follow-overlay");
+  var closeBtn = document.getElementById("follow-close");
+  var input = document.getElementById("follow-handle");
+  var submit = document.getElementById("follow-submit");
+  var errorEl = document.getElementById("follow-error");
+
+  if (!btn || !overlay) return;
+
+  function open() {
+    overlay.classList.add("open");
+    input.value = "";
+    errorEl.style.display = "none";
+    setTimeout(function() { input.focus(); }, 50);
+  }
+
+  function close() {
+    overlay.classList.remove("open");
+  }
+
+  function showError(msg) {
+    errorEl.textContent = msg;
+    errorEl.style.display = "block";
+  }
+
+  function doFollow() {
+    var handle = (input.value || "").trim();
+    if (!handle) { showError("enter your fediverse handle"); return; }
+
+    // Parse handle: accept user@instance or @user@instance
+    var match = handle.match(/^@?([^@]+)@([^@/]+)$/);
+    if (!match) { showError("format: user@instance.tld"); return; }
+
+    var user = match[1];
+    var instance = match[2];
+    errorEl.style.display = "none";
+    submit.textContent = "...";
+
+    // Look up the remote instance's subscribe template via WebFinger
+    var wfUrl = "https://" + instance + "/.well-known/webfinger?resource=acct:" +
+      encodeURIComponent(user + "@" + instance);
+
+    fetch(wfUrl).then(function(res) {
+      if (!res.ok) throw new Error("instance not found");
+      return res.json();
+    }).then(function(data) {
+      var template = null;
+      var links = data.links || [];
+      for (var i = 0; i < links.length; i++) {
+        if (links[i].template && links[i].rel &&
+            links[i].rel.indexOf("subscribe") !== -1) {
+          template = links[i].template;
+          break;
+        }
+      }
+
+      if (template) {
+        // OStatus subscribe template
+        window.location.href = template.replace("{uri}", encodeURIComponent(PROFILE_URI));
+      } else {
+        // Fallback: try /authorize_interaction (Mastodon 3.x+)
+        window.location.href = "https://" + instance +
+          "/authorize_interaction?uri=" + encodeURIComponent(PROFILE_URI);
+      }
+    }).catch(function() {
+      // Final fallback: try authorize_interaction anyway
+      window.location.href = "https://" + instance +
+        "/authorize_interaction?uri=" + encodeURIComponent(PROFILE_URI);
+    }).finally(function() {
+      submit.textContent = "go";
+    });
+  }
+
+  btn.addEventListener("click", open);
+  closeBtn.addEventListener("click", close);
+  overlay.addEventListener("click", function(e) {
+    if (e.target === overlay) close();
+  });
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape" && overlay.classList.contains("open")) close();
+  });
+  input.addEventListener("keydown", function(e) {
+    if (e.key === "Enter") doFollow();
+  });
+  submit.addEventListener("click", doFollow);
+})();
+
 // ── ASCII Cityscape Backdrop ──
 (function initCityscape() {
   var scene = document.getElementById("ascii-scene");

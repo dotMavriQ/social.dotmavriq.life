@@ -351,6 +351,158 @@
       margin: 2rem 0;
     }
 
+    /* ── Follow Button (neubrutalist) ── */
+    .follow-btn {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      z-index: 200;
+      background: var(--fg);
+      color: var(--bg);
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.75rem 1.5rem;
+      border: 3px solid var(--fg);
+      box-shadow: 4px 4px 0 var(--fg);
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .follow-btn:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 6px 6px 0 var(--fg);
+    }
+    .follow-btn:active {
+      transform: translate(2px, 2px);
+      box-shadow: 1px 1px 0 var(--fg);
+    }
+    [data-theme="dark"] .follow-btn {
+      box-shadow: 4px 4px 0 var(--muted);
+      border-color: var(--fg);
+    }
+    [data-theme="dark"] .follow-btn:hover {
+      box-shadow: 6px 6px 0 var(--muted);
+    }
+    [data-theme="dark"] .follow-btn:active {
+      box-shadow: 1px 1px 0 var(--muted);
+    }
+
+    /* ── Follow Modal ── */
+    .follow-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      background: rgba(0, 0, 0, 0.5);
+      align-items: center;
+      justify-content: center;
+    }
+    .follow-overlay.open {
+      display: flex;
+    }
+    .follow-modal {
+      background: var(--bg);
+      border: 3px solid var(--fg);
+      box-shadow: 8px 8px 0 var(--fg);
+      padding: 2rem;
+      max-width: 420px;
+      width: calc(100% - 40px);
+      font-family: var(--font-mono);
+    }
+    [data-theme="dark"] .follow-modal {
+      box-shadow: 8px 8px 0 var(--muted);
+    }
+    .follow-modal h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      text-transform: lowercase;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.03em;
+    }
+    .follow-modal h2::before {
+      content: "// ";
+      color: var(--muted);
+      font-weight: 400;
+    }
+    .follow-modal p {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 1.25rem;
+      line-height: 1.5;
+    }
+    .follow-input-row {
+      display: flex;
+      gap: 0;
+    }
+    .follow-input {
+      flex: 1;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      padding: 0.6rem 0.75rem;
+      border: 3px solid var(--fg);
+      border-right: none;
+      background: var(--bg);
+      color: var(--fg);
+      outline: none;
+    }
+    .follow-input::placeholder {
+      color: var(--cloud);
+    }
+    .follow-input:focus {
+      background: var(--bg);
+      border-color: var(--accent);
+    }
+    .follow-submit {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.6rem 1rem;
+      background: var(--fg);
+      color: var(--bg);
+      border: 3px solid var(--fg);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .follow-submit:hover {
+      opacity: 0.85;
+    }
+    .follow-error {
+      font-size: 0.75rem;
+      color: #c44;
+      margin-top: 0.5rem;
+      display: none;
+    }
+    .follow-close {
+      position: absolute;
+      top: 0.75rem;
+      right: 1rem;
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: var(--font-mono);
+    }
+    .follow-close:hover {
+      color: var(--fg);
+    }
+    .follow-modal {
+      position: relative;
+    }
+
+    @media (max-width: 600px) {
+      .follow-btn {
+        bottom: 1rem;
+        right: 1rem;
+        font-size: 0.8rem;
+        padding: 0.6rem 1rem;
+      }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       * {
         animation-duration: 0.01ms !important;
@@ -392,6 +544,21 @@
       <button class="load-more-btn" id="load-more-btn">// load more</button>
     </div>
   </main>
+
+  <button class="follow-btn" id="follow-btn">⁂ follow</button>
+
+  <div class="follow-overlay" id="follow-overlay">
+    <div class="follow-modal">
+      <button class="follow-close" id="follow-close" aria-label="Close">&times;</button>
+      <h2>follow from your instance</h2>
+      <p>Enter your fediverse handle and you'll be redirected to your instance to confirm.</p>
+      <div class="follow-input-row">
+        <input class="follow-input" id="follow-handle" type="text" placeholder="user@mastodon.social" autocomplete="off" spellcheck="false">
+        <button class="follow-submit" id="follow-submit">go</button>
+      </div>
+      <div class="follow-error" id="follow-error"></div>
+    </div>
+  </div>
 
   <footer class="footer container">
     <pre class="ascii-divider">|:::|=======|:::|_______|:::|=======|:::|_______|:::|</pre>
