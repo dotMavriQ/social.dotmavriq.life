@@ -87,9 +87,16 @@ function escAttr(s) {
   return s.replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
+// Global gallery registry: flat list of all images across all posts
+var galleryImages = [];
+// Map from image index to post index for skip-to-next-post
+var galleryPostMap = [];
+var postCount = 0;
+
 function renderPost(post) {
   var div = document.createElement("article");
   div.className = "post";
+  var thisPost = postCount++;
 
   var date = formatDate(post.created_at);
   var postUrl = post.url || post.uri;
@@ -98,16 +105,24 @@ function renderPost(post) {
   if (post.media_attachments && post.media_attachments.length > 0) {
     var count = Math.min(post.media_attachments.length, 4);
     var gridClass = "media-" + count;
-    var items = post.media_attachments.slice(0, 4).map(function(m) {
-      var desc = m.description ? escAttr(m.description) : "attached image";
+    var items = post.media_attachments.slice(0, 4).map(function(m, idx) {
+      var desc = m.description || "";
+      var descAttr = desc ? escAttr(desc) : "attached image";
       if (m.type === "video" || m.type === "gifv") {
         return '<video src="' + escAttr(m.url) + '" controls muted playsinline' +
-          (m.description ? ' title="' + desc + '"' : '') +
+          (desc ? ' title="' + escAttr(desc) + '"' : '') +
           '></video>';
       }
-      return '<a href="' + escAttr(m.url) + '" target="_blank" rel="noopener">' +
-        '<img src="' + escAttr(m.preview_url || m.url) + '" alt="' + desc +
-        '" loading="lazy"></a>';
+      var gIdx = galleryImages.length;
+      galleryImages.push({
+        full: m.url,
+        preview: m.preview_url || m.url,
+        alt: desc,
+        postIndex: thisPost
+      });
+      galleryPostMap.push(thisPost);
+      return '<img src="' + escAttr(m.preview_url || m.url) + '" alt="' + descAttr +
+        '" loading="lazy" data-gallery="' + gIdx + '">';
     }).join("");
     mediaHtml = '<div class="post-media ' + gridClass + '">' + items + '</div>';
   }
@@ -278,6 +293,174 @@ loadPosts();
     if (e.key === "Enter") doFollow();
   });
   submit.addEventListener("click", doFollow);
+})();
+
+// ── Lightbox ──
+(function initLightbox() {
+  var lightbox = document.getElementById("lightbox");
+  var lbImg = document.getElementById("lb-img");
+  var lbAlt = document.getElementById("lb-alt");
+  var lbCounter = document.getElementById("lb-counter");
+  var lbClose = document.getElementById("lb-close");
+  var lbPrev = document.getElementById("lb-prev");
+  var lbNext = document.getElementById("lb-next");
+  var lbSkip = document.getElementById("lb-skip");
+  var lbStage = document.getElementById("lb-stage");
+
+  if (!lightbox || !lbImg) return;
+
+  var currentIdx = -1;
+  var touchStartX = 0;
+  var touchStartY = 0;
+
+  function show(idx) {
+    if (idx < 0 || idx >= galleryImages.length) return;
+    currentIdx = idx;
+    var item = galleryImages[idx];
+
+    lbImg.style.opacity = "0";
+    lbImg.src = item.full;
+    lbImg.alt = item.alt || "";
+    lbImg.onload = function() { lbImg.style.opacity = "1"; };
+
+    // Alt text
+    lbAlt.textContent = item.alt || "";
+
+    // Counter: find images in same post
+    var postIdx = item.postIndex;
+    var postImages = [];
+    for (var i = 0; i < galleryImages.length; i++) {
+      if (galleryImages[i].postIndex === postIdx) postImages.push(i);
+    }
+    var posInPost = postImages.indexOf(idx) + 1;
+    lbCounter.textContent = posInPost + " / " + postImages.length;
+
+    // Prev/next state
+    lbPrev.disabled = (idx <= 0);
+    lbNext.disabled = (idx >= galleryImages.length - 1);
+
+    // Skip hint: show if next/prev post has images
+    var skipText = "";
+    if (idx >= galleryImages.length - 1 || galleryImages[idx + 1].postIndex !== postIdx) {
+      // At end of this post's images - check if next post exists
+      var nextPostStart = findNextPostStart(idx);
+      if (nextPostStart >= 0) skipText = "shift + \u2192 next post";
+    }
+    if (idx <= 0 || galleryImages[idx - 1].postIndex !== postIdx) {
+      var prevPostEnd = findPrevPostEnd(idx);
+      if (prevPostEnd >= 0) {
+        skipText = skipText ? "shift + \u2190/\u2192 skip post" : "shift + \u2190 prev post";
+      }
+    }
+    lbSkip.textContent = skipText;
+
+    // Preload adjacent
+    if (idx + 1 < galleryImages.length) { new Image().src = galleryImages[idx + 1].full; }
+    if (idx - 1 >= 0) { new Image().src = galleryImages[idx - 1].full; }
+
+    lightbox.classList.add("open");
+    document.body.style.overflow = "hidden";
+  }
+
+  function hide() {
+    lightbox.classList.remove("open");
+    document.body.style.overflow = "";
+    currentIdx = -1;
+  }
+
+  function prev() {
+    if (currentIdx > 0) show(currentIdx - 1);
+  }
+
+  function next() {
+    if (currentIdx < galleryImages.length - 1) show(currentIdx + 1);
+  }
+
+  function findNextPostStart(fromIdx) {
+    var currentPost = galleryImages[fromIdx].postIndex;
+    for (var i = fromIdx + 1; i < galleryImages.length; i++) {
+      if (galleryImages[i].postIndex !== currentPost) return i;
+    }
+    return -1;
+  }
+
+  function findPrevPostEnd(fromIdx) {
+    var currentPost = galleryImages[fromIdx].postIndex;
+    for (var i = fromIdx - 1; i >= 0; i--) {
+      if (galleryImages[i].postIndex !== currentPost) return i;
+    }
+    return -1;
+  }
+
+  function skipNextPost() {
+    var target = findNextPostStart(currentIdx);
+    if (target >= 0) show(target);
+  }
+
+  function skipPrevPost() {
+    var target = findPrevPostEnd(currentIdx);
+    if (target >= 0) {
+      // Jump to first image of that post
+      var postIdx = galleryImages[target].postIndex;
+      for (var i = 0; i <= target; i++) {
+        if (galleryImages[i].postIndex === postIdx) { show(i); return; }
+      }
+      show(target);
+    }
+  }
+
+  // Click on feed images
+  document.getElementById("feed").addEventListener("click", function(e) {
+    var img = e.target.closest("img[data-gallery]");
+    if (!img) return;
+    e.preventDefault();
+    var idx = parseInt(img.getAttribute("data-gallery"), 10);
+    if (!isNaN(idx)) show(idx);
+  });
+
+  lbClose.addEventListener("click", hide);
+  lbPrev.addEventListener("click", function(e) { e.stopPropagation(); prev(); });
+  lbNext.addEventListener("click", function(e) { e.stopPropagation(); next(); });
+
+  // Click on image itself does nothing (let prev/next zones handle it)
+  lbImg.addEventListener("click", function(e) { e.stopPropagation(); });
+
+  // Click on dark area outside image closes
+  lbStage.addEventListener("click", function(e) {
+    if (e.target === lbStage) hide();
+  });
+
+  // Keyboard
+  document.addEventListener("keydown", function(e) {
+    if (!lightbox.classList.contains("open")) return;
+    if (e.key === "Escape") { hide(); return; }
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      if (e.shiftKey) skipPrevPost(); else prev();
+    }
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      if (e.shiftKey) skipNextPost(); else next();
+    }
+  });
+
+  // Touch/swipe support
+  lbStage.addEventListener("touchstart", function(e) {
+    if (e.touches.length === 1) {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+
+  lbStage.addEventListener("touchend", function(e) {
+    if (e.changedTouches.length === 1) {
+      var dx = e.changedTouches[0].clientX - touchStartX;
+      var dy = e.changedTouches[0].clientY - touchStartY;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        if (dx < 0) next(); else prev();
+      }
+    }
+  }, { passive: true });
 })();
 
 // ── ASCII Cityscape Backdrop ──
