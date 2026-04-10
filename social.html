@@ -476,6 +476,18 @@
       margin-top: 0.5rem;
       display: none;
     }
+    .follow-rss {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 1.25rem;
+      font-style: italic;
+      text-align: center;
+    }
+    .follow-rss a {
+      color: var(--fg);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
     .follow-close {
       position: absolute;
       top: 0.75rem;
@@ -557,6 +569,7 @@
         <button class="follow-submit" id="follow-submit">go</button>
       </div>
       <div class="follow-error" id="follow-error"></div>
+      <p class="follow-rss">or if you simply want to lurk, here's the <a href="/users/dotmavriq/feed.atom" target="_blank" rel="noopener">atom rss feed</a></p>
     </div>
   </div>
 
